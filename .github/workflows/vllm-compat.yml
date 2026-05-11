@@ -1,0 +1,75 @@
+name: vLLM compatibility
+
+on:
+  pull_request:
+  push:
+  workflow_dispatch:
+  schedule:
+    - cron: "17 4 * * 1"
+
+jobs:
+  api-compat:
+    name: API compatibility
+    runs-on: ubuntu-24.04
+    env:
+      UV_LINK_MODE: copy
+      UV_TORCH_BACKEND: cpu
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v6
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v8.1.0
+        with:
+          enable-cache: true
+          python-version: "3.12"
+
+      - name: Install latest CPU dependencies
+        run: |
+          uv venv
+          uv pip install --upgrade pytest tqdm
+          uv pip install --upgrade --prerelease if-necessary --index https://wheels.vllm.ai/nightly/cpu --index-strategy first-index --torch-backend cpu vllm
+          uv pip install --no-deps --editable .
+
+      - name: Run fast compatibility tests
+        run: uv run --no-sync pytest -m "not slow and not integration"
+
+  vllm-compat:
+    name: vLLM compatibility
+    runs-on: ubuntu-24.04
+    if: github.event_name == 'schedule' || github.event_name == 'workflow_dispatch'
+    env:
+      UV_LINK_MODE: copy
+      UV_TORCH_BACKEND: cpu
+      VLLM_CPU_CI_ENV: "1"
+      VLLM_CPU_KVCACHE_SPACE: "1"
+      VLLM_TARGET_DEVICE: cpu
+      TORCH_COMPILE_DISABLE: "1"
+      VLLM_ENABLE_V1_MULTIPROCESSING: "0"
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v6
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v8.1.0
+        with:
+          enable-cache: true
+          python-version: "3.12"
+
+      - name: Install CPU runtime libraries
+        run: sudo apt-get update && sudo apt-get install -y --no-install-recommends libtcmalloc-minimal4
+
+      - name: Install latest CPU dependencies
+        run: |
+          uv venv
+          uv pip install --upgrade pytest tqdm
+          uv pip install --upgrade --prerelease if-necessary --index https://wheels.vllm.ai/nightly/cpu --index-strategy first-index --torch-backend cpu vllm
+          uv pip install --no-deps --editable .
+
+      - name: Run vLLM API compatibility tests
+        run: uv run --no-sync pytest tests/test_vllm_api_compat.py
+
+      - name: Run vLLM CPU integration tests
+        env:
+          HF_HOME: ${{ runner.temp }}/hf
+        run: uv run --no-sync pytest -m "integration"

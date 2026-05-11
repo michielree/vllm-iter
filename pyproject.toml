@@ -1,0 +1,30 @@
+[build-system]
+requires = ["hatchling>=1.25"]
+build-backend = "hatchling.build"
+
+[project]
+name = "vllm-iter"
+version = "0.1.0"
+description = "Iterable-based offline generation helpers for vLLM."
+readme = "README.md"
+requires-python = ">=3.10"
+license = { text = "MIT" }
+authors = [{ name = "Michiel van der Ree" }]
+dependencies = [
+    "tqdm>=4.66",
+    "vllm",
+]
+
+[dependency-groups]
+dev = [
+    "pytest>=8",
+]
+
+[tool.pytest.ini_options]
+markers = [
+    "integration: tests that exercise real vLLM model execution.",
+    "slow: tests that download or run models and should stay out of fast CI.",
+]
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/vllm_iter"]

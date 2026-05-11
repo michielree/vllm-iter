@@ -12,6 +12,19 @@ backpressure. When the input iterable length is known ahead of time, pass
 `total=` to keep the tqdm progress bar stable instead of growing it dynamically
 as prompts are submitted.
 
+## Motivation
+
+This is useful when your prompts come from a large streaming source and you do
+not want to materialize either the full input set or the full output set in
+memory.
+
+For example, imagine a huge JSON Lines file. You can iterate over the input
+lines, convert each one into a `PromptType`, and feed that iterable directly
+into `generate_iter()`. As results come back, you can immediately append them
+to an output JSON Lines file and forget about them. That keeps memory bounded and
+also means a crash or interruption does not lose everything that was already
+written.
+
 ## Installation
 
 ```bash

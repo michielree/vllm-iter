@@ -1,0 +1,33 @@
+name: CI
+
+on:
+  pull_request:
+  push:
+
+jobs:
+  test-and-build:
+    name: Test and build
+    runs-on: ubuntu-24.04
+    env:
+      UV_LINK_MODE: copy
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v6
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v8.1.0
+        with:
+          enable-cache: true
+          python-version: "3.12"
+
+      - name: Install dependencies
+        run: uv sync --dev
+
+      - name: Run fast tests
+        run: uv run pytest -m "not slow and not integration"
+
+      - name: Build package
+        run: uv build
+
+      - name: Check package metadata
+        run: uv run --with twine twine check dist/*

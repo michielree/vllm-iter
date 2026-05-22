@@ -8,12 +8,29 @@ version = "0.1.0"
 description = "Iterable-based offline generation helpers for vLLM."
 readme = "README.md"
 requires-python = ">=3.10"
-license = { text = "MIT" }
+license = "MIT"
+license-files = ["LICENSE"]
 authors = [{ name = "Michiel van der Ree" }]
+keywords = ["vllm", "llm", "generation", "streaming", "batching"]
+classifiers = [
+    "Development Status :: 3 - Alpha",
+    "Intended Audience :: Developers",
+    "License :: OSI Approved :: MIT License",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Typing :: Typed",
+]
 dependencies = [
     "tqdm>=4.66",
     "vllm",
 ]
+
+[project.urls]
+Homepage = "https://github.com/michielree/vllm-iter"
+Repository = "https://github.com/michielree/vllm-iter"
+Issues = "https://github.com/michielree/vllm-iter/issues"
 
 [dependency-groups]
 dev = [

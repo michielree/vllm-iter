@@ -28,7 +28,7 @@ written.
 ## Installation
 
 ```bash
-pip install git+https://github.com/michielree/vllm-iter.git
+pip install vllm-iter
 ```
 
 ## Example

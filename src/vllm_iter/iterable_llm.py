@@ -9,7 +9,8 @@ from tqdm.auto import tqdm
 from vllm import LLM, SamplingParams
 from vllm.inputs import PromptType
 from vllm.lora.request import LoRARequest
-from vllm.outputs import RequestOutput
+from vllm.exceptions import VLLMValidationError
+from vllm.outputs import CompletionOutput, RequestOutput
 from vllm.sampling_params import RequestOutputKind
 
 Ordering = Literal["input"]
@@ -90,25 +91,54 @@ class IterableLLM(LLM):
                         exhausted = True
                         break
 
-                    request_id = self._submit_iter_request(
-                        prompt=prompt,
-                        params=params,
-                        lora_request=lora_request,
-                        priority=priority,
-                        tokenization_kwargs=tokenization_kwargs,
-                        mm_processor_kwargs=mm_processor_kwargs,
-                    )
-                    request_id_to_index[request_id] = next_input_index
-                    logger.debug(
-                        "Submitted iterable request: request_id=%s input_index=%s",
-                        request_id,
-                        next_input_index,
-                    )
+                    try:
+                        request_id = self._submit_iter_request(
+                            prompt=prompt,
+                            params=params,
+                            lora_request=lora_request,
+                            priority=priority,
+                            tokenization_kwargs=tokenization_kwargs,
+                            mm_processor_kwargs=mm_processor_kwargs,
+                        )
+                    except VLLMValidationError as exc:
+                        logger.warning(
+                            "Skipping invalid iterable request at input_index=%s: %s",
+                            next_input_index,
+                            exc,
+                        )
+                        buffered_outputs[next_input_index] = (
+                            self._request_validation_error_output(
+                                request_id=str(next(self.request_counter)),
+                                prompt=prompt,
+                                error=exc,
+                            )
+                        )
+                    else:
+                        request_id_to_index[request_id] = next_input_index
+                        logger.debug(
+                            "Submitted iterable request: request_id=%s input_index=%s",
+                            request_id,
+                            next_input_index,
+                        )
                     next_input_index += 1
 
                     if pbar is not None and total is None:
                         pbar.total = next_input_index
                         pbar.refresh()
+
+                    while next_output_index in buffered_outputs:
+                        buffered_output = buffered_outputs.pop(next_output_index)
+                        if pbar is not None:
+                            self._update_progress_bar(pbar, buffered_output)
+                        logger.debug(
+                            "Yielding final output in input order: "
+                            "request_id=%s input_index=%s",
+                            buffered_output.request_id,
+                            next_output_index,
+                        )
+                        yielded_count += 1
+                        yield buffered_output
+                        next_output_index += 1
 
                 if exhausted and not request_id_to_index:
                     break
@@ -194,6 +224,33 @@ class IterableLLM(LLM):
             priority=priority,
         )
         return request_id
+
+    def _request_validation_error_output(
+        self,
+        *,
+        request_id: str,
+        prompt: PromptType,
+        error: VLLMValidationError,
+    ) -> RequestOutput:
+        prompt_text = prompt if isinstance(prompt, str) else None
+        return RequestOutput(
+            request_id=request_id,
+            prompt=prompt_text,
+            prompt_token_ids=None,
+            prompt_logprobs=None,
+            outputs=[
+                CompletionOutput(
+                    index=0,
+                    text=str(error),
+                    token_ids=[],
+                    cumulative_logprob=None,
+                    logprobs=None,
+                    finish_reason="error",
+                    stop_reason=str(error),
+                )
+            ],
+            finished=True,
+        )
 
     def _validate_generate_iter_args(
         self,
